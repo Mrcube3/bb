@@ -33,6 +33,7 @@ class Settings:
     x402_pay_to: str = os.getenv("PROMETHEUS_X402_PAY_TO", "")
     x402_scheme: str = os.getenv("PROMETHEUS_X402_SCHEME", "exact")
     enable_scheduler: bool = os.getenv("PROMETHEUS_ENABLE_SCHEDULER", "true").lower() == "true"
+    auto_generate: bool = os.getenv("PROMETHEUS_AUTO_GENERATE", "true").lower() == "true"
     model_provider: str = os.getenv("PROMETHEUS_MODEL_PROVIDER", "PROMETHEUS_DETERMINISTIC")
     model_version: str = os.getenv("PROMETHEUS_MODEL_VERSION", "signal-v1")
     prompt_schema_version: str = os.getenv("PROMETHEUS_PROMPT_SCHEMA_VERSION", "prompt-v1")

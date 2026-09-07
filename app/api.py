@@ -141,8 +141,15 @@ def _scheduler() -> None:
     while True:
         try:
             resolver.resolve_due()
-        finally:
-            time.sleep(settings.list_interval_seconds)
+        except Exception:
+            pass
+        if settings.auto_generate:
+            for asset in settings.assets:
+                try:
+                    engine.create(asset, settings.default_horizon)
+                except Exception:
+                    pass
+        time.sleep(settings.list_interval_seconds)
 
 
 @app.on_event("startup")

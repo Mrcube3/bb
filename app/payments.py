@@ -49,40 +49,38 @@ class X402PaymentService:
     def _verify_sdk(self, payment_header: str, requirements: dict[str, Any]) -> dict[str, Any]:
         try:
             from x402.http import FacilitatorConfig, HTTPFacilitatorClient
-            facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=self.settings.facilitator_url))
+            from x402.schemas import PaymentPayload, PaymentRequirements
+
             accept = requirements["accepts"][0] if requirements.get("accepts") else {}
             payload = self._decode_header(payment_header)
-            verify_result = self._facilitator_verify(facilitator, payload, accept)
-            if not verify_result.get("isValid"):
-                return {"status": "FAILED", "verification": "REJECTED", "provider": "X402_SDK", "evidence": verify_result}
-            settle_result = self._facilitator_settle(facilitator, payload, accept)
-            success = bool(settle_result.get("success") or settle_result.get("settled"))
+            facilitator = HTTPFacilitatorClient(FacilitatorConfig(url=self.settings.facilitator_url))
+
+            req_obj = PaymentRequirements(
+                scheme=accept.get("scheme"),
+                network=accept.get("network"),
+                asset=accept.get("asset"),
+                amount=str(accept.get("amount", "")),
+                pay_to=accept.get("payTo"),
+            )
+            payload_obj = PaymentPayload(x402_version=2, payload=payload, accepted=req_obj.model_dump(), resource=accept.get("resource", ""))
+
+            verify_result = facilitator.verify(payload_obj, req_obj)
+            if not getattr(verify_result, "is_valid", getattr(verify_result, "isValid", False)):
+                return {"status": "FAILED", "verification": "REJECTED", "provider": "X402_SDK", "evidence": verify_result.model_dump()}
+            settle_result = facilitator.settle(payload_obj, req_obj)
+            success = bool(getattr(settle_result, "success", getattr(settle_result, "settled", False)))
             return {
                 "status": "PAID" if success else "UNKNOWN",
                 "verification": "VERIFIED" if success else "UNVERIFIED",
                 "provider": "X402_SDK",
-                "payment_reference": settle_result.get("paymentId"),
-                "transaction_hash": settle_result.get("transactionHash"),
+                "payment_reference": getattr(settle_result, "payment_id", getattr(settle_result, "paymentId", None)),
+                "transaction_hash": getattr(settle_result, "transaction_hash", getattr(settle_result, "transactionHash", None)),
                 "network": accept.get("network"),
-                "evidence": {"verify": verify_result, "settle": settle_result},
+                "evidence": {"verify": verify_result.model_dump(), "settle": settle_result.model_dump()},
                 "verified_at": datetime.now(timezone.utc).isoformat() if success else None,
             }
         except Exception as exc:
             return {"status": "UNKNOWN", "verification": "UNVERIFIED", "provider": "X402_SDK", "evidence": {"error": str(exc)}}
-
-    def _facilitator_verify(self, facilitator: Any, payload: dict[str, Any], accept: dict[str, Any]) -> dict[str, Any]:
-        body = json.dumps({"paymentPayload": payload, "paymentRequirements": accept}, separators=(",", ":")).encode()
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self.settings.x402_pay_to:
-            headers["X-Api-Key"] = self.settings.x402_pay_to
-        return self._post(self.settings.facilitator_url + "/verify", body, headers)
-
-    def _facilitator_settle(self, facilitator: Any, payload: dict[str, Any], accept: dict[str, Any]) -> dict[str, Any]:
-        body = json.dumps({"paymentPayload": payload, "paymentRequirements": accept}, separators=(",", ":")).encode()
-        headers = {"Content-Type": "application/json", "Accept": "application/json"}
-        if self.settings.x402_pay_to:
-            headers["X-Api-Key"] = self.settings.x402_pay_to
-        return self._post(self.settings.facilitator_url + "/settle", body, headers)
 
     def _verify_raw(self, payment_header: str, requirements: dict[str, Any]) -> dict[str, Any]:
         payload = self._decode_header(payment_header)
