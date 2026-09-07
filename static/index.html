@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PROMETHEUS — Signal Economy</title>
+  <style>
+    :root { color-scheme: dark; --bg:#090b10; --panel:#111722; --line:#263142; --muted:#8e9aae; --accent:#87f5c6; --red:#f58787; --yellow:#f5d587; --blue:#87b5f5; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:14px/1.6 'SF Mono',Monaco,Consolas,monospace; color:#eef5f1; background:radial-gradient(circle at 80% 0,#17392f 0,transparent 32rem),var(--bg); }
+    main { max-width:1200px; margin:auto; padding:32px 20px 60px; }
+    .eyebrow { color:var(--accent); letter-spacing:.18em; text-transform:uppercase; font-size:11px; }
+    h1 { font-size:clamp(32px,6vw,64px); line-height:.95; max-width:700px; margin:12px 0; }
+    .lede { color:var(--muted); max-width:680px; font-size:16px; margin-bottom:24px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:20px; }
+    button { cursor:pointer; border:1px solid var(--accent); background:var(--accent); color:#07110d; padding:8px 16px; border-radius:6px; font-weight:700; font-size:13px; font-family:inherit; }
+    button.secondary { background:transparent; color:var(--accent); }
+    button.danger { background:var(--red); border-color:var(--red); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    section { margin-top:28px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:12px; }
+    .card { background:#111722cc; border:1px solid var(--line); border-radius:10px; padding:16px; backdrop-filter:blur(12px); }
+    .card h3 { margin:0 0 8px; font-size:15px; }
+    .muted { color:var(--muted); }
+    .price { color:var(--accent); font-size:20px; margin:8px 0 4px; }
+    code { color:#d3f8e9; font-size:12px; }
+    .tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+    .tag-green { background:#87f5c620; color:var(--accent); }
+    .tag-red { background:#f5878720; color:var(--red); }
+    .tag-yellow { background:#f5d58720; color:var(--yellow); }
+    .tag-blue { background:#87b5f520; color:var(--blue); }
+    #status { min-height:20px; color:var(--muted); margin-top:8px; font-size:13px; }
+    .stat-row { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0; }
+    .stat { text-align:center; }
+    .stat-value { font-size:24px; font-weight:700; color:var(--accent); }
+    .stat-label { font-size:11px; color:var(--muted); text-transform:uppercase; }
+    table { width:100%; border-collapse:collapse; font-size:12px; }
+    th,td { padding:8px 12px; text-align:left; border-bottom:1px solid var(--line); }
+    th { color:var(--muted); text-transform:uppercase; font-size:11px; }
+    .tab-bar { display:flex; gap:2px; margin-bottom:16px; }
+    .tab { padding:8px 16px; cursor:pointer; border:1px solid var(--line); background:transparent; color:var(--muted); border-radius:6px 6px 0 0; font-family:inherit; font-size:12px; }
+    .tab.active { background:var(--panel); color:var(--accent); border-bottom-color:var(--panel); }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; font-size:12px; max-height:300px; overflow-y:auto; }
+    .progress { height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin:8px 0; }
+    .progress-bar { height:100%; background:var(--accent); border-radius:2px; transition:width .3s; }
+    .flex-between { display:flex; justify-content:space-between; align-items:center; }
+  </style>
+</head>
+<body><main>
+  <div class="eyebrow">PROMETHEUS / AUTONOMOUS SIGNAL ECONOMY</div>
+  <h1>Predict. Sell. Prove. Repeat.</h1>
+  <p class="lede">Machine-readable market intelligence with deterministic evidence, frozen passports, fail-closed delivery, and outcomes that face reality.</p>
+
+  <div class="row">
+    <button onclick="generate()" id="genBtn">Generate Signal</button>
+    <button class="secondary" onclick="refresh()">Refresh</button>
+    <button class="secondary" onclick="resolveDue()">Resolve Due</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('signals')">Marketplace</button>
+    <button class="tab" onclick="switchTab('reputation')">Reputation</button>
+    <button class="tab" onclick="switchTab('journal')">Journal</button>
+    <button class="tab" onclick="switchTab('providers')">Providers</button>
+  </div>
+
+  <div id="tab-signals" class="tab-content active">
+    <div class="flex-between" style="margin-bottom:12px">
+      <h2 style="margin:0">Marketplace</h2>
+      <span class="muted">Protected fields hidden until verified payment</span>
+    </div>
+    <div id="signals" class="grid"></div>
+  </div>
+
+  <div id="tab-reputation" class="tab-content">
+    <h2>Reputation</h2>
+    <div id="rep-stats"></div>
+    <div id="reputation" class="card">Loading...</div>
+  </div>
+
+  <div id="tab-journal" class="tab-content">
+    <h2>Journal</h2>
+    <div id="journal-entries"></div>
+  </div>
+
+  <div id="tab-providers" class="tab-content">
+    <h2>Provider Status</h2>
+    <div id="providers"></div>
+  </div>
+
+  <script>
+    const status = document.querySelector('#status');
+
+    function switchTab(name) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+      document.querySelector('#tab-' + name).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function stateTag(state) {
+      const colors = {
+        LISTED: 'green', PURCHASED: 'blue', DELIVERED: 'blue',
+        AWAITING_OUTCOME: 'yellow', VERIFIED: 'green', UNRESOLVED: 'red', EXPIRED: 'red'
+      };
+      return `<span class="tag tag-${colors[state] || 'yellow'}">${state}</span>`;
+    }
+
+    function dirTag(d) {
+      const c = { LONG: 'green', SHORT: 'red', NEUTRAL: 'yellow', STAND_DOWN: 'red' };
+      return `<span class="tag tag-${c[d] || 'yellow'}">${d}</span>`;
+    }
+
+    async function refresh() {
+      status.textContent = 'Loading...';
+      try {
+        const [sigRes, repRes, journalRes, provRes] = await Promise.all([
+          fetch('/api/marketplace/signals'),
+          fetch('/api/reputation'),
+          fetch('/api/journal?limit=50'),
+          fetch('/provider-status'),
+        ]);
+        const signals = await sigRes.json();
+        const rep = await repRes.json();
+        const journal = await journalRes.json();
+        const provs = await provRes.json();
+
+        document.querySelector('#signals').innerHTML = signals.length
+          ? signals.map(s => `
+            <article class="card">
+              <div class="flex-between">
+                <span class="muted">${s.asset} &middot; ${s.horizon}</span>
+                ${stateTag(s.state)}
+              </div>
+              <h3><code>${(s.signal_id || '').slice(0,12)}...</code></h3>
+              <div class="price">${s.listed_price} ${s.currency}</div>
+              <div class="muted" style="font-size:12px">
+                ${s.model_provider} / ${s.model_version}<br>
+                ${s.freshness || 'FRESH'} &middot; ${s.reputation?.status || 'INSUFFICIENT_SAMPLE'}
+                ${s.outcome_due_at ? '<br>Due: ' + new Date(s.outcome_due_at).toLocaleTimeString() : ''}
+              </div>
+            </article>`).join('')
+          : '<div class="card">No listed signals. Click "Generate Signal" to begin.</div>';
+
+        document.querySelector('#reputation').innerHTML = `
+          <div class="stat-row">
+            <div class="stat"><div class="stat-value">${rep.published_signals || 0}</div><div class="stat-label">Published</div></div>
+            <div class="stat"><div class="stat-value">${rep.resolved_signals || 0}</div><div class="stat-label">Resolved</div></div>
+            <div class="stat"><div class="stat-value">${rep.correct_signals || 0}</div><div class="stat-label">Correct</div></div>
+            <div class="stat"><div class="stat-value">${rep.incorrect_signals || 0}</div><div class="stat-label">Incorrect</div></div>
+            <div class="stat"><div class="stat-value">${rep.accuracy != null ? (rep.accuracy * 100).toFixed(1) + '%' : 'N/A'}</div><div class="stat-label">Accuracy</div></div>
+          </div>
+          <div class="muted">Sample: ${rep.n || 0} resolved &middot; Status: ${rep.status}</div>`;
+
+        document.querySelector('#journal-entries').innerHTML = journal.entries?.length
+          ? `<table><thead><tr><th>Time</th><th>Event</th><th>Entity</th></tr></thead><tbody>${
+              journal.entries.slice(0, 30).map(e =>
+                `<tr><td class="muted">${new Date(e.created_at).toLocaleTimeString()}</td><td><code>${e.event_type}</code></td><td><code>${(e.entity_id || '').slice(0,12)}...</code></td></tr>`
+              ).join('')
+            }</tbody></table>`
+          : '<div class="card muted">No journal entries yet.</div>';
+
+        document.querySelector('#providers').innerHTML = `<div class="grid">${
+          provs.providers?.map(p => `
+            <div class="card">
+              <div class="flex-between">
+                <h3>${p.name}</h3>
+                ${stateTag(p.status)}
+              </div>
+              <div class="muted" style="font-size:12px;margin-top:8px">${p.evidence}</div>
+            </div>`).join('') || ''
+        }</div>`;
+
+        status.textContent = `Loaded ${signals.length} signals, ${rep.resolved_signals || 0} resolved`;
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    async function generate() {
+      const btn = document.querySelector('#genBtn');
+      btn.disabled = true;
+      status.textContent = 'Fetching Binance market data...';
+      try {
+        const r = await fetch('/api/signals/generate?asset=BTCUSDT&horizon=10m', { method: 'POST' });
+        const j = await r.json();
+        status.textContent = r.ok ? `Signal frozen: ${j.signal_id?.slice(0,12)}...` : (j.detail || 'Generation failed');
+        refresh();
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      }
+      btn.disabled = false;
+    }
+
+    async function resolveDue() {
+      status.textContent = 'Resolving due outcomes...';
+      try {
+        const r = await fetch('/api/admin/resolve-due', { method: 'POST' });
+        const j = await r.json();
+        status.textContent = `Resolved ${j.resolved?.length || 0} outcomes`;
+        refresh();
+      } catch (err) {
+        status.textContent = 'Error: ' + err.message;
+      }
+    }
+
+    refresh();
+    setInterval(refresh, 30000);
+  </script>
+</main></body></html>
